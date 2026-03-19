@@ -72,20 +72,20 @@ Or use CLI directly:
 ```bash
 S=~/.claude/skills/bydfi-futures-trader/bydfi_futures.py
 
-python3 $S price BTC-USDT                 # Check price
-python3 $S balance                        # Check balance
-python3 $S positions                      # View positions
-python3 $S buy BTC-USDT 100               # Buy 100 contracts (= 0.1 BTC, market)
-python3 $S buy BTC-USDT 100 65000         # Buy 100 contracts (limit @ 65000)
-python3 $S sell BTC-USDT 100              # Sell 100 contracts
-python3 $S close BTC-USDT SELL            # Close BUY position
-python3 $S tp BTC-USDT SELL 90000         # Set take-profit @ 90000
-python3 $S sl BTC-USDT SELL 60000         # Set stop-loss @ 60000
-python3 $S plan_orders BTC-USDT           # View TP/SL orders
-python3 $S cancel BTC-USDT                # Cancel all orders
-python3 $S leverage BTC-USDT 10           # Set leverage
+python3 $S price BTC-USDT          # Check price
+python3 $S balance                  # Check balance
+python3 $S positions                # View positions
+python3 $S buy BTC-USDT 100        # Buy 100 contracts (= 0.1 BTC, market)
+python3 $S buy BTC-USDT 100 65000  # Buy 100 contracts (limit @ 65000)
+python3 $S sell BTC-USDT 100       # Sell 100 contracts
+python3 $S close BTC-USDT SELL     # Close BUY position
+python3 $S tp BTC-USDT SELL 90000  # Set take-profit @ 90000
+python3 $S sl BTC-USDT SELL 60000  # Set stop-loss @ 60000
+python3 $S plan_orders BTC-USDT    # View TP/SL orders
+python3 $S cancel BTC-USDT         # Cancel all orders
+python3 $S leverage BTC-USDT 10    # Set leverage
 python3 $S margin_type BTC-USDT ISOLATED  # Set isolated margin
-python3 $S help                           # All commands
+python3 $S help                    # All commands
 ```
 
 ## Configuration
@@ -111,7 +111,10 @@ export BYDFI_WALLET="W001"
 ## Important Notes
 
 - **Production only** — connects to `api.bydfi.com` with real funds, no testnet
+- **API endpoints** use `/v1/fapi/` prefix (futures API). Docs: https://developers.bydfi.com/en/futures/trade
 - **Quantity = contracts, not coins.** BTC: 1 contract = 0.001 BTC. Buy 0.1 BTC = 100 contracts.
+- **TP/SL** — omit `qty` to use `closePosition=true` (close entire position); specify `qty` for partial close with `reduceOnly=true`. Multiple TP/SL at different prices supported.
+- **Cancel** — `cancel <symbol>` cancels both regular orders and plan orders (TP/SL) in one call.
 - **Rate limit:** max 1 order/sec. Exceeding triggers 15-30 min ban.
 - **Always verify position exists** before setting TP/SL, or they may open a new position instead of closing.
 

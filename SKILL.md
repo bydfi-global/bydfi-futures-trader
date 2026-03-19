@@ -105,9 +105,13 @@ Use `exchange_info <symbol>` to check contractFactor.
 - `tp <symbol> <side> <stopPrice> [qty]` — TAKE_PROFIT_MARKET, triggers market close at stopPrice
 - `sl <symbol> <side> <stopPrice> [qty]` — STOP_MARKET, triggers market close at stopPrice
 - `side` = direction to close: long position → `SELL`, short position → `BUY`
-- Omit `qty` to auto-detect from current position
+- Omit `qty` to use `closePosition=true` (auto close entire position, recommended)
+- Specify `qty` to use `reduceOnly=true` (partial close by contract count)
 - **Always verify position exists before setting TP/SL**, or they become dangling orders that may open a new position
 - Cancel dangling orders: `cancel <symbol> <orderId>`
+
+### API Endpoints
+All futures endpoints use `/v1/fapi/` prefix (not `/v1/swap/`). Docs: https://developers.bydfi.com/en/futures/trade
 
 ### Closing Positions
 To close, use the **opposite side**: close a BUY position with `close SYMBOL SELL`.

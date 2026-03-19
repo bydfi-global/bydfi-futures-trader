@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-BYDFi Futures Trader CLI - 永续合约交易命令行工具 (生产环境)
-连接 BYDFi 主网 (api.bydfi.com)，使用真实资金，请谨慎操作。
+BYDFi Futures Trader CLI - Perpetual Contract Trading Command-Line Tool
+Connect to the BYDFi Mainnet (api.bydfi.com). This uses real funds, please proceed with caution.
 
 Setup (first time):
   python3 bydfi_futures.py setup <api_key> <secret_key> [wallet]
@@ -187,10 +187,12 @@ def check_keys():
 
 def cmd_price(args):
     symbol = args[0] if args else "BTC-USDT"
-    resp = api_get("/v1/swap/market/ticker/price", {"symbol": symbol})
+    resp = api_get("/v1/fapi/market/ticker/price", {"symbol": symbol})
     code, data = extract(resp)
     if code == 200:
-        if isinstance(data, dict):
+        if isinstance(data, list) and data:
+            print(f"{symbol}: {data[0].get('price', data[0])}")
+        elif isinstance(data, dict):
             print(f"{symbol}: {data.get('price', data)}")
         else:
             output(data)
@@ -201,14 +203,14 @@ def cmd_price(args):
 def cmd_depth(args):
     symbol = args[0] if args else "BTC-USDT"
     limit = int(args[1]) if len(args) > 1 else 10
-    resp = api_get("/v1/swap/market/depth", {"symbol": symbol, "limit": limit})
+    resp = api_get("/v1/fapi/market/depth", {"symbol": symbol, "limit": limit})
     code, data = extract(resp)
     output(data, f"Depth {symbol}")
 
 
 def cmd_ticker(args):
     params = {"symbol": args[0]} if args else {}
-    resp = api_get("/v1/swap/market/ticker/24hr", params)
+    resp = api_get("/v1/fapi/market/ticker/24hr", params)
     code, data = extract(resp)
     if code == 200 and isinstance(data, list):
         for t in data[:20]:
@@ -226,7 +228,7 @@ def cmd_klines(args):
     limit = int(args[2]) if len(args) > 2 else 10
     now = int(time.time() * 1000)
     start = now - limit * 60 * 1000 * 10
-    resp = api_get("/v1/swap/market/klines", {
+    resp = api_get("/v1/fapi/market/klines", {
         "symbol": symbol, "interval": interval,
         "startTime": start, "endTime": now, "limit": limit,
     })
@@ -236,13 +238,13 @@ def cmd_klines(args):
 
 def cmd_funding(args):
     symbol = args[0] if args else "BTC-USDT"
-    resp = api_get("/v1/swap/market/funding_rate", {"symbol": symbol})
+    resp = api_get("/v1/fapi/market/funding_rate", {"symbol": symbol})
     code, data = extract(resp)
     output(data, f"Funding Rate {symbol}")
 
 
 def cmd_exchange_info(args):
-    resp = api_get("/v1/swap/market/exchange_info")
+    resp = api_get("/v1/fapi/market/exchange_info")
     code, data = extract(resp)
     if code == 200 and isinstance(data, list):
         if args:
@@ -262,7 +264,7 @@ def cmd_balance(args):
     params = {"wallet": WALLET}
     if args:
         params["asset"] = args[0]
-    resp = api_get("/v1/swap/account/balance", params)
+    resp = api_get("/v1/fapi/account/balance", params)
     code, data = extract(resp)
     if code == 200 and isinstance(data, list):
         for b in data:
@@ -302,7 +304,7 @@ def cmd_positions(args):
     params = {"contractType": "FUTURE"}
     if args:
         params["symbol"] = args[0]
-    resp = api_get("/v1/swap/trade/positions", params)
+    resp = api_get("/v1/fapi/trade/positions", params)
     code, data = extract(resp)
     if code == 200 and isinstance(data, list):
         positions = [p for p in data if float(p.get("volume", 0)) > 0]
@@ -324,7 +326,7 @@ def cmd_positions(args):
 
 def get_contract_factor(symbol):
     """Get contractFactor for a symbol to convert coin amount to contracts."""
-    resp = api_get("/v1/swap/market/exchange_info")
+    resp = api_get("/v1/fapi/market/exchange_info")
     code, data = extract(resp)
     if code == 200 and isinstance(data, list):
         for item in data:
@@ -352,7 +354,7 @@ def cmd_buy(args):
     else:
         body["type"] = "MARKET"
 
-    resp = api_post("/v1/swap/trade/place_order", body)
+    resp = api_post("/v1/fapi/trade/place_order", body)
     code, data = extract(resp)
     if code == 200:
         print(f"  Order placed: {data}")
@@ -366,7 +368,7 @@ def cmd_buy(args):
                 **({"price": str(body["price"]), "timeInForce": "GTC"} if "price" in body else {}),
             }],
         }
-        resp2 = api_post("/v1/swap/trade/batch_place_order", batch_body)
+        resp2 = api_post("/v1/fapi/trade/batch_place_order", batch_body)
         output(resp2, "Batch Fallback")
     else:
         output(resp, "Error")
@@ -389,7 +391,7 @@ def cmd_sell(args):
     else:
         body["type"] = "MARKET"
 
-    resp = api_post("/v1/swap/trade/place_order", body)
+    resp = api_post("/v1/fapi/trade/place_order", body)
     code, data = extract(resp)
     if code == 200:
         print(f"  Order placed: {data}")
@@ -403,7 +405,7 @@ def cmd_sell(args):
                 **({"price": str(body["price"]), "timeInForce": "GTC"} if "price" in body else {}),
             }],
         }
-        resp2 = api_post("/v1/swap/trade/batch_place_order", batch_body)
+        resp2 = api_post("/v1/fapi/trade/batch_place_order", batch_body)
         output(resp2, "Batch Fallback")
     else:
         output(resp, "Error")
@@ -426,7 +428,7 @@ def cmd_close(args):
     else:
         # Get position to determine quantity
         params = {"contractType": "FUTURE", "symbol": symbol}
-        pos_resp = api_get("/v1/swap/trade/positions", params)
+        pos_resp = api_get("/v1/fapi/trade/positions", params)
         pos_code, pos_data = extract(pos_resp)
         if pos_code == 200 and isinstance(pos_data, list):
             opp_side = "BUY" if side == "SELL" else "SELL"
@@ -440,7 +442,7 @@ def cmd_close(args):
                 print(f"  No {opp_side} position found for {symbol}")
                 return
 
-    resp = api_post("/v1/swap/trade/place_order", body)
+    resp = api_post("/v1/fapi/trade/place_order", body)
     code, data = extract(resp)
     if code == 200:
         print(f"  Position closed: {data}")
@@ -461,43 +463,31 @@ def cmd_tp(args):
     body = {
         "wallet": WALLET, "symbol": symbol,
         "side": side, "type": "TAKE_PROFIT_MARKET",
+        "positionSide": "BOTH",
         "stopPrice": float(stop_price),
         "workingType": "CONTRACT_PRICE",
     }
     if len(args) > 3:
         body["quantity"] = int(args[3])
+        body["reduceOnly"] = True
     else:
-        # Auto-detect quantity from position
-        opp_side = "BUY" if side == "SELL" else "SELL"
-        params = {"contractType": "FUTURE", "symbol": symbol}
-        pos_resp = api_get("/v1/swap/trade/positions", params)
-        pos_code, pos_data = extract(pos_resp)
-        if pos_code == 200 and isinstance(pos_data, list):
-            matching = [p for p in pos_data if p.get("symbol") == symbol
-                       and p.get("side") == opp_side and float(p.get("volume", 0)) > 0]
-            if matching:
-                vol = float(matching[0]["volume"])
-                cf = get_contract_factor(symbol) or 0.001
-                body["quantity"] = int(vol / cf)
-            else:
-                print(f"  No {opp_side} position found for {symbol}")
-                return
-        else:
-            print(f"  Failed to query positions")
-            return
-    resp = api_post("/v1/swap/trade/place_order", body)
+        body["closePosition"] = True
+    resp = api_post("/v1/fapi/trade/place_order", body)
     code, data = extract(resp)
     if code == 200:
         print(f"  Take-profit set: {data}")
     elif code == 510:
         print("  Rate limited (510). Trying batch fallback...")
-        batch_body = {
-            "wallet": WALLET,
-            "orders": [{"symbol": symbol, "side": side, "type": "TAKE_PROFIT_MARKET",
-                        "stopPrice": str(float(stop_price)), "workingType": "CONTRACT_PRICE",
-                        **({"quantity": str(int(args[3]))} if len(args) > 3 else {})}],
-        }
-        resp2 = api_post("/v1/swap/trade/batch_place_order", batch_body)
+        order = {"symbol": symbol, "side": side, "type": "TAKE_PROFIT_MARKET",
+                 "positionSide": "BOTH",
+                 "stopPrice": str(float(stop_price)), "workingType": "CONTRACT_PRICE"}
+        if len(args) > 3:
+            order["quantity"] = str(int(args[3]))
+            order["reduceOnly"] = True
+        else:
+            order["closePosition"] = "true"
+        batch_body = {"wallet": WALLET, "orders": [order]}
+        resp2 = api_post("/v1/fapi/trade/batch_place_order", batch_body)
         output(resp2, "Batch Fallback")
     else:
         output(resp, "Error")
@@ -516,43 +506,31 @@ def cmd_sl(args):
     body = {
         "wallet": WALLET, "symbol": symbol,
         "side": side, "type": "STOP_MARKET",
+        "positionSide": "BOTH",
         "stopPrice": float(stop_price),
         "workingType": "CONTRACT_PRICE",
     }
     if len(args) > 3:
         body["quantity"] = int(args[3])
+        body["reduceOnly"] = True
     else:
-        # Auto-detect quantity from position
-        opp_side = "BUY" if side == "SELL" else "SELL"
-        params = {"contractType": "FUTURE", "symbol": symbol}
-        pos_resp = api_get("/v1/swap/trade/positions", params)
-        pos_code, pos_data = extract(pos_resp)
-        if pos_code == 200 and isinstance(pos_data, list):
-            matching = [p for p in pos_data if p.get("symbol") == symbol
-                       and p.get("side") == opp_side and float(p.get("volume", 0)) > 0]
-            if matching:
-                vol = float(matching[0]["volume"])
-                cf = get_contract_factor(symbol) or 0.001
-                body["quantity"] = int(vol / cf)
-            else:
-                print(f"  No {opp_side} position found for {symbol}")
-                return
-        else:
-            print(f"  Failed to query positions")
-            return
-    resp = api_post("/v1/swap/trade/place_order", body)
+        body["closePosition"] = True
+    resp = api_post("/v1/fapi/trade/place_order", body)
     code, data = extract(resp)
     if code == 200:
         print(f"  Stop-loss set: {data}")
     elif code == 510:
         print("  Rate limited (510). Trying batch fallback...")
-        batch_body = {
-            "wallet": WALLET,
-            "orders": [{"symbol": symbol, "side": side, "type": "STOP_MARKET",
-                        "stopPrice": str(float(stop_price)), "workingType": "CONTRACT_PRICE",
-                        **({"quantity": str(int(args[3]))} if len(args) > 3 else {})}],
-        }
-        resp2 = api_post("/v1/swap/trade/batch_place_order", batch_body)
+        order = {"symbol": symbol, "side": side, "type": "STOP_MARKET",
+                 "positionSide": "BOTH",
+                 "stopPrice": str(float(stop_price)), "workingType": "CONTRACT_PRICE"}
+        if len(args) > 3:
+            order["quantity"] = str(int(args[3]))
+            order["reduceOnly"] = True
+        else:
+            order["closePosition"] = "true"
+        batch_body = {"wallet": WALLET, "orders": [order]}
+        resp2 = api_post("/v1/fapi/trade/batch_place_order", batch_body)
         output(resp2, "Batch Fallback")
     else:
         output(resp, "Error")
@@ -564,7 +542,7 @@ def cmd_plan_orders(args):
     if not args:
         print("Usage: plan_orders <symbol>")
         return
-    resp = api_get("/v1/swap/trade/plan_order", {"wallet": WALLET, "symbol": args[0]})
+    resp = api_get("/v1/fapi/trade/plan_order", {"wallet": WALLET, "symbol": args[0]})
     code, data = extract(resp)
     output(data, f"Plan Orders {args[0]}")
 
@@ -576,15 +554,33 @@ def cmd_cancel(args):
         return
     if len(args) > 1:
         # Cancel by orderId (works for plan/conditional orders too)
-        resp = api_post("/v1/swap/trade/cancel_order", {
+        resp = api_post("/v1/fapi/trade/cancel_order", {
             "wallet": WALLET, "symbol": args[0], "orderId": args[1],
         })
         output(resp, f"Cancel Order {args[1]}")
     else:
-        resp = api_post("/v1/swap/trade/cancel_all_order", {
-            "wallet": WALLET, "symbol": args[0],
+        symbol = args[0]
+        # Cancel regular orders
+        resp = api_post("/v1/fapi/trade/cancel_all_order", {
+            "wallet": WALLET, "symbol": symbol,
         })
-        output(resp, f"Cancel All {args[0]}")
+        code, data = extract(resp)
+        cancelled = len(data) if isinstance(data, list) else 0
+        # Cancel plan/conditional orders (TP/SL) - cancel_all_order doesn't cover these
+        plan_resp = api_get("/v1/fapi/trade/plan_order", {"wallet": WALLET, "symbol": symbol})
+        plan_code, plan_data = extract(plan_resp)
+        plan_cancelled = 0
+        if plan_code == 200 and isinstance(plan_data, list):
+            for order in plan_data:
+                oid = order.get("orderId")
+                if oid:
+                    cr = api_post("/v1/fapi/trade/cancel_order", {
+                        "wallet": WALLET, "symbol": symbol, "orderId": str(oid),
+                    })
+                    cc, _ = extract(cr)
+                    if cc == 200:
+                        plan_cancelled += 1
+        print(f"  {symbol}: cancelled {cancelled} regular + {plan_cancelled} plan orders")
 
 
 def cmd_orders(args):
@@ -592,7 +588,7 @@ def cmd_orders(args):
     if not args:
         print("Usage: orders <symbol>")
         return
-    resp = api_get("/v1/swap/trade/open_order", {"wallet": WALLET, "symbol": args[0]})
+    resp = api_get("/v1/fapi/trade/open_order", {"wallet": WALLET, "symbol": args[0]})
     code, data = extract(resp)
     output(data, f"Open Orders {args[0]}")
 
@@ -603,7 +599,7 @@ def cmd_history(args):
     if args:
         params["symbol"] = args[0]
     params["limit"] = int(args[1]) if len(args) > 1 else 10
-    resp = api_get("/v1/swap/trade/history_order", params)
+    resp = api_get("/v1/fapi/trade/history_order", params)
     code, data = extract(resp)
     if code == 200 and isinstance(data, list):
         for o in data[:20]:
@@ -627,11 +623,11 @@ def cmd_leverage(args):
         return
     symbol = args[0]
     if len(args) > 1:
-        resp = api_post("/v1/swap/trade/leverage", {
+        resp = api_post("/v1/fapi/trade/leverage", {
             "wallet": WALLET, "symbol": symbol, "leverage": int(args[1]),
         })
     else:
-        resp = api_get("/v1/swap/trade/leverage", {"wallet": WALLET, "symbol": symbol})
+        resp = api_get("/v1/fapi/trade/leverage", {"wallet": WALLET, "symbol": symbol})
     code, data = extract(resp)
     output(data, f"Leverage {symbol}")
 
@@ -641,7 +637,7 @@ def cmd_margin_type(args):
     if len(args) < 2:
         print("Usage: margin_type <symbol> <CROSS|ISOLATED>")
         return
-    resp = api_post("/v1/swap/user_data/margin_type", {
+    resp = api_post("/v1/fapi/user_data/margin_type", {
         "contractType": "FUTURE", "symbol": args[0],
         "wallet": WALLET, "marginType": args[1].upper(),
     })
@@ -653,7 +649,7 @@ def cmd_position_mode(args):
     if not args:
         print("Usage: position_mode <HEDGE|ONEWAY>")
         return
-    resp = api_post("/v1/swap/user_data/position_side/dual", {
+    resp = api_post("/v1/fapi/user_data/position_side/dual", {
         "contractType": "FUTURE", "wallet": WALLET,
         "positionType": args[0].upper(), "settleCoin": "USDT",
     })
